@@ -5,8 +5,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = 'AIzaSyD3FTXJpc05XH3oYJT-0Ad4TnxzmYzGgBA';
-const RAPID_API_KEY = '6e013b5cb6msh4f54dcf1f64757bp1f2ed6jsn05c1e2e921a2';
 
 app.use(express.json());
 app.use(cors());
@@ -27,7 +25,7 @@ app.post('/api/transcript', async (req, res) => {
         const transcriptResponse = await fetch(finalUrl, {
             method: 'GET',
             headers: {
-                'x-rapidapi-key': RAPID_API_KEY,
+                'x-rapidapi-key': process.env.RAPID_API_KEY,
                 'x-rapidapi-host': 'youtube-transcripts.p.rapidapi.com'
             }
         });
@@ -68,7 +66,7 @@ function getFullTranscript(transcriptData) {
 
 // Function to summarize transcript using Google Generative AI
 async function fetchSummary(transcriptText) {
-    const genAI = new GoogleGenerativeAI(API_KEY);
+    const genAI = new GoogleGenerativeAI(process.env.API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `Summarize the following text:\n\n${transcriptText}`;
