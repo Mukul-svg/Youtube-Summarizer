@@ -1,33 +1,81 @@
-// server.js
-const express = require('express');
+import express from 'express';
+import cors from 'cors';
+import fetch from 'node-fetch'; // Use import instead of require
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const API_KEY = 'AIzaSyD3FTXJpc05XH3oYJT-0Ad4TnxzmYzGgBA';
-const cors = require('cors');
+const RAPID_API_KEY = '6e013b5cb6msh4f54dcf1f64757bp1f2ed6jsn05c1e2e921a2';
+
 app.use(express.json());
 app.use(cors());
-app.post('/api/summarize', async (req, res) => {
+
+// Endpoint to fetch transcript and summarize it
+app.post('/api/transcript', async (req, res) => {
     try {
-        const { text } = req.body;
-        if (!text) {
-            return res.status(400).json({ error: "Text is required in the request body" });
+        const { videoId } = req.body;
+
+        if (!videoId) {
+            return res.status(400).json({ error: "Video ID is required in the request body" });
         }
 
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Fetch transcript from YouTube
+        const apiUrl = `https://youtube-transcripts.p.rapidapi.com/youtube/transcript?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D${videoId}`;
+        const finalUrl = `${apiUrl}`;
 
-        const prompt = `Summarize the following text:\n\n${text}`;
+        const transcriptResponse = await fetch(finalUrl, {
+            method: 'GET',
+            headers: {
+                'x-rapidapi-key': RAPID_API_KEY,
+                'x-rapidapi-host': 'youtube-transcripts.p.rapidapi.com'
+            }
+        });
 
-        const result = await model.generateContent(prompt);
-        const summary = result.response.text();
+        if (!transcriptResponse.ok) {
+            throw new Error('Failed to fetch transcript.');
+        }
+
+        const transcriptData = await transcriptResponse.json();
+        const transcript = getFullTranscript(transcriptData);
+
+        // Summarize the transcript
+        const summary = await fetchSummary(transcript);
 
         res.json({ summary });
+
     } catch (error) {
-        console.error("Error generating summary:", error);
-        res.status(500).json({ error: "Failed to generate summary" });
+        console.error("Error fetching transcript or generating summary:", error);
+        res.status(500).json({ error: "Failed to fetch transcript or generate summary" });
     }
 });
+
+// Helper function to convert the transcript content into a single text block
+function getFullTranscript(transcriptData) {
+    const content = transcriptData.content;
+    let fullText = '';
+
+    if (Array.isArray(content)) {
+        content.forEach(item => {
+            fullText += item.text + ' ';
+        });
+    } else {
+        return 'No transcript available.';
+    }
+
+    return fullText;
+}
+
+// Function to summarize transcript using Google Generative AI
+async function fetchSummary(transcriptText) {
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `Summarize the following text:\n\n${transcriptText}`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+}
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
